@@ -22,39 +22,7 @@ const CIPHERED_TEXTS: [&str; 11] = [
 const TARGET: &str = "32510ba9babebbbefd001547a810e67149caee11d945cd7fc81a05e9f85aac650e9052ba6a8cd8257bf14d13e6f0a803b54fde9e77472dbff89d71b57bddef121336cb85ccb8f3315f4b52e301d16e9f52f904";
 
 fn main() {
-    // println!("{:?}", str::from_utf8(&xored).unwrap());
-
-    // let (m1, m2) = align_messages(C1, C2);
-    // let xored = xor_hex_messages(m1, m2);
-    // println!(
-    //     "{:?}",
-    //     String::from_utf8_lossy(&xored)
-    //         .split("")
-    //         .collect::<Vec<_>>()
-    // );
-
-    // let chars: Vec<_> = find_characters(C1, vec![C2]);
-    // println!("{:?}", chars);
-
-    // let v1 = vec![1, 1, 1, 1];
-    // let v2 = vec![0, 1];
-    // let c = vec![v1, v2];
-
-    // println!("{:?}", find_spaces(c));
-
-    // " " ^ "a" -> "A"
-    // " " ^ "A" -> "a"
-
-    // let c2 = CIPHERED_TEXTS[1];
-
-    // let characters = find_characters(c2, CIPHERED_TEXTS[2..].to_vec());
-
-    // let spaces_2 = find_spaces(characters);
-
-    // let updated_key_values = discover_key_positions(spaces_2, c2);
-
-    // key_values = update_key_values(key_values, updated_key_values);
-
+   
     let c1 = CIPHERED_TEXTS[0];
 
     let characters = find_characters(c1, CIPHERED_TEXTS[1..].to_vec());
