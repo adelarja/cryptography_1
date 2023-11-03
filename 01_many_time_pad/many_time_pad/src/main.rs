@@ -1,9 +1,5 @@
-use hex;
-use std::cmp::Ordering;
+use crypto::crypto;
 use std::str;
-
-const C1: &str = "315c4eeaa8b5f8aaf9174145bf43e1784b8fa00dc71d885a804e5ee9fa40b16349c146fb778cdf2d3aff021dfff5b403b510d0d0455468aeb98622b137dae857553ccd8883a7bc37520e06e515d22c954eba5025b8cc57ee59418ce7dc6bc41556bdb36bbca3e8774301fbcaa3b83b220809560987815f65286764703de0f3d524400a19b159610b11ef3e";
-const C2: &str = "234c02ecbbfbafa3ed18510abd11fa724fcda2018a1a8342cf064bbde548b12b07df44ba7191d9606ef4081ffde5ad46a5069d9f7f543bedb9c861bf29c7e205132eda9382b0bc2c5c4b45f919cf3a9f1cb74151f6d551f4480c82b2cb24cc5b028aa76eb7b4ab24171ab3cdadb8356f";
 
 const CIPHERED_TEXTS: [&str; 11] = [
     "315c4eeaa8b5f8aaf9174145bf43e1784b8fa00dc71d885a804e5ee9fa40b16349c146fb778cdf2d3aff021dfff5b403b510d0d0455468aeb98622b137dae857553ccd8883a7bc37520e06e515d22c954eba5025b8cc57ee59418ce7dc6bc41556bdb36bbca3e8774301fbcaa3b83b220809560987815f65286764703de0f3d524400a19b159610b11ef3e",
@@ -21,99 +17,86 @@ const CIPHERED_TEXTS: [&str; 11] = [
 
 const TARGET: &str = "32510ba9babebbbefd001547a810e67149caee11d945cd7fc81a05e9f85aac650e9052ba6a8cd8257bf14d13e6f0a803b54fde9e77472dbff89d71b57bddef121336cb85ccb8f3315f4b52e301d16e9f52f904";
 
+fn align_all_messages<'a>(hex_ciphered_texts: [&'a str; 11]) -> Vec<&'a str> {
+    let mut min: usize = usize::MAX;
+    let mut messages: Vec<&str> = vec![]; 
+    
+    for hex_message in hex_ciphered_texts {
+        if min > hex_message.len() { min = hex_message.len() } else {}
+    }
+
+    for hex_message in hex_ciphered_texts {
+        messages.push(&hex_message[..min])
+    }
+
+    messages
+}
+
+fn get_encoded_ciphered_texts(hex_ciphered_texts: Vec<&str>) -> Vec<Vec<u8>> {
+    let mut encoded_ciphered_text: Vec<Vec<u8>> = vec![];
+    for hex_ciphered in hex_ciphered_texts {
+        if let Ok(bytes_vector) = crypto::hex_to_bytes_vector(hex_ciphered) {
+            encoded_ciphered_text.push(bytes_vector);
+        }
+    }
+    encoded_ciphered_text
+}
+
+fn get_0_key(length: usize) -> Vec<u8> {
+    let mut key: Vec<u8> = vec![];
+    
+    for _ in 0..length {
+        key.push(0);
+    }
+
+    key
+}
+
+fn replace_non_utf(message: Vec<u8>) -> Vec<u8> {
+    let fixed: Vec<u8> = message.iter().map(|x| if char::from(*x).is_digit(36) {*x} else {42}).collect();
+    fixed
+}
+
+fn get_mixed(ct: &Vec<u8>, collection: &Vec<Vec<u8>>) -> Vec<Vec<u8>> {
+    let mut mixed: Vec<Vec<u8>> = vec![];
+
+    for ct2 in collection {
+        mixed.push(crypto::xor_bytes(&ct, &ct2));
+    }
+
+    mixed
+}
+
 fn main() {
-   
-    let c1 = CIPHERED_TEXTS[0];
+    let hex_ciph = align_all_messages(CIPHERED_TEXTS.clone());
 
-    let characters = find_characters(c1, CIPHERED_TEXTS[1..].to_vec());
+    let encoded_ciphered_texts = get_encoded_ciphered_texts(hex_ciph);
 
-    let spaces = find_spaces(characters);
+    let mut key: Vec<u8> = get_0_key(encoded_ciphered_texts.clone()[0].len());
 
-    let mut key_values = discover_key_positions(spaces, c1);
+    // for ct in encoded_ciphered_texts.clone() {
+    //     let space_mask = crypto::validate_space(&ct, &encoded_ciphered_texts.clone());
+    //     key = crypto::mix_key_values(&crypto::get_key_values(&ct, &space_mask), &key);
+    // }
 
-    for i in 1..CIPHERED_TEXTS.len() - 1 {
-        let characters = find_characters(CIPHERED_TEXTS[i], CIPHERED_TEXTS[i + 1 ..].to_vec());
-        let spaces = find_spaces(characters);
-        let new_key_values = discover_key_positions(spaces, CIPHERED_TEXTS[i]);
-        key_values = update_key_values(key_values, new_key_values)
+    // for ct in encoded_ciphered_texts.clone() {
+    //     let pt = crypto::xor_bytes(&ct, &key);
+    //     let utf_valid = replace_non_utf(pt);
+    //     println!("\n{:?}\n", std::str::from_utf8(&utf_valid).unwrap());
+    // }
+
+    let space_mask = crypto::validate_space(&crypto::hex_to_bytes_vector(TARGET).unwrap(), &encoded_ciphered_texts);
+    let space_mask = crypto::space_mask(&crypto::hex_to_bytes_vector(TARGET).unwrap(), &encoded_ciphered_texts.clone()[0]);
+  
+    let expanded = crypto::expand_word_to_length("The secret message is: When using a stream cipher, never use the key more than once", 83);
+    for ct in encoded_ciphered_texts.clone() {
+        let mixed = get_mixed(&ct, &encoded_ciphered_texts.clone());
+        for mix in mixed {
+            let result = crypto::xor_bytes(&mix, &expanded);
+            let utf_valid = replace_non_utf(result);
+            println!("\n{:?}\n", std::str::from_utf8(&utf_valid).unwrap());
+        }
     }
 
-    let target = hex::decode(TARGET).expect("Invlaid hex.");
-    let target_text: Vec<_> = key_values.iter().zip(target).map(|(x,y)| *x ^ y).collect();
-    let dec = decode_partially_ciphered(target_text);
-
-    println!("{:?}",str::from_utf8(&dec));
-    println!("\n\n\n{:?}", key_values);
-}
-
-/// Perform the xor between message_1 and message_2 and return the result as a vector of bytes.
-fn xor_hex_messages(message_1: &str, message_2: &str) -> Vec<u8> {
-    let (message_1, message_2) = align_messages(message_1, message_2);
-
-    let m1_bytes = hex::decode(message_1).expect("Invalid hex.");
-    let m2_bytes = hex::decode(message_2).expect("Invalid hex.");
-
-    let xored: Vec<_> = m1_bytes.iter().zip(m2_bytes).map(|(x, y)| x ^ y).collect();
-    xored
-}
-
-/// Perform the slice of the messages, using the len of the shorter string as upper limit.
-fn align_messages<'a>(message_1: &'a str, message_2: &'a str) -> (&'a str, &'a str) {
-    let limit = match message_1.len().cmp(&message_2.len()) {
-        Ordering::Greater => message_2.len(),
-        _ => message_1.len(),
-    };
-
-    (&message_1[..limit], &message_2[..limit])
-}
-
-fn align_arrays<T: std::clone::Clone>(message_1: &[T], message_2: &[T]) -> (Vec<T>, Vec<T>) {
-    let limit = match message_1.len().cmp(&message_2.len()) {
-        Ordering::Greater => message_2.len(),
-        _ => message_1.len(),
-    };
-
-    (message_1[..limit].into(), message_2[..limit].into())
-}
-
-fn find_characters(message: &str, messages: Vec<&str>) -> Vec<Vec<u8>> {
-    let xored: Vec<_> = messages
-        .iter()
-        .map(|x| xor_hex_messages(message, x))
-        .collect();
-    let filtered: Vec<_> = xored
-        .iter()
-        .map(|x| {
-            x.iter()
-                .map(|y| if char::from(*y).is_digit(36) { 32 } else { 0 })
-                .collect::<Vec<_>>()
-        })
-        .collect();
-    filtered
-}
-
-fn find_spaces(messages: Vec<Vec<u8>>) -> Vec<u8> {
-    let mut spaces_positions = messages[0].clone();
-
-    for message in messages {
-        spaces_positions = message.iter().zip(spaces_positions).map(|(x, y)| x & y).collect();
-    }
-
-    spaces_positions
-}
-
-fn discover_key_positions(spaces: Vec<u8>, ciphered: &str) -> Vec<u8> {
-    let c = hex::decode(ciphered).expect("Invalid hex.");
-    let keys: Vec<_> = c.iter().zip(spaces).map(|(x, y)| if y == 0 {0} else {x ^ y}).collect();
-    keys
-}
-
-fn update_key_values(key_values: Vec<u8>, new_key_values: Vec<u8>) -> Vec<u8> {
-    let updated_key = key_values.iter().zip(new_key_values).map(|(x, y)| if y != 0 && *x == 0 { y } else { *x }).collect();
-    updated_key
-}
-
-fn decode_partially_ciphered(ciphered: Vec<u8>) -> Vec<u8> {
-    let ciph: Vec<u8> = ciphered.iter().map(|x| if char::from(*x).is_digit(36) {*x} else {32}).collect();
-    ciph
+    println!("{:?}", space_mask);
 }
